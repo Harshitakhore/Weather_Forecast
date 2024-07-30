@@ -8,12 +8,22 @@ import io.vertx.ext.web.RoutingContext;
 public class WeatherHandler {
 
     private final ApiClient apiClient;
+    private final TokenHandler tokenHandler;
 
-    public WeatherHandler(ApiClient apiClient) {
+    public WeatherHandler(ApiClient apiClient, TokenHandler tokenHandler) {
         this.apiClient = apiClient;
+        this.tokenHandler = tokenHandler;
     }
 
     public void getWeatherForecastSummary(RoutingContext context) {
+        String token = context.request().getHeader("Authorization");
+        if (!isValidToken(token)) {
+            context.response()
+                    .setStatusCode(401)
+                    .end("Unauthorized: Invalid or missing token");
+            return;
+        }
+
         String city = context.pathParam("city");
         if (city == null || city.isEmpty()) {
             context.response()
@@ -21,6 +31,8 @@ public class WeatherHandler {
                     .end("City parameter is missing or empty");
             return;
         }
+        String clientIp = context.request().remoteAddress().host();
+        System.out.println("Client IP Address: " + clientIp);
 
         apiClient.getWeatherSummary(city, result -> {
             if (result.succeeded()) {
@@ -36,6 +48,14 @@ public class WeatherHandler {
     }
 
     public void getHourlyForecast(RoutingContext context) {
+        String token = context.request().getHeader("Authorization");
+        if (!isValidToken(token)) {
+            context.response()
+                    .setStatusCode(401)
+                    .end("Unauthorized: Invalid or missing token");
+            return;
+        }
+
         String city = context.pathParam("city");
         String hoursParam = context.queryParam("hours").get(0);
         int hours;
@@ -63,6 +83,8 @@ public class WeatherHandler {
                     .end(errorResponse.encodePrettily());
             return;
         }
+        String clientIp = context.request().remoteAddress().host();
+        System.out.println("Client IP Address: " + clientIp);
 
         apiClient.getHourlyForecast(city, hours, result -> {
             if (result.succeeded()) {
@@ -80,5 +102,9 @@ public class WeatherHandler {
                         .end(errorResponse.encodePrettily());
             }
         });
+    }
+
+    private boolean isValidToken(String token) {
+        return token != null && token.startsWith("Bearer ") && tokenHandler.verifyToken(token.substring(7));
     }
 }
